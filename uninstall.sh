@@ -36,7 +36,7 @@ if command -v jq &>/dev/null && grep -qF "session-start-learnings" "$SETTINGS" 2
   printf "  [y/N] "
   read -r answer
   if [[ "$answer" =~ ^[Yy]$ ]]; then
-    jq '.hooks.SessionStart = [.hooks.SessionStart[] | select(.hooks[0].command | contains("session-start-learnings") | not)]' \
+    jq '.hooks.SessionStart = [.hooks.SessionStart[] | select((.hooks[0].command // "") | contains("session-start-learnings") | not)]' \
       "$SETTINGS" > "$SETTINGS.tmp"
     mv "$SETTINGS.tmp" "$SETTINGS"
     rm -f "$HOOK_DEST"

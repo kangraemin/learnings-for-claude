@@ -44,13 +44,17 @@ if ! command -v jq &>/dev/null; then
 elif grep -qF "session-start-learnings" "$SETTINGS" 2>/dev/null; then
   echo "  SessionStart 훅 이미 존재 — 스킵"
 else
+  mkdir -p "$(dirname "$HOOK_DEST")"
   cp "$SCRIPT_DIR/hooks/session-start-learnings.sh" "$HOOK_DEST"
   chmod +x "$HOOK_DEST"
 
-  # settings.json 백업
-  cp "$SETTINGS" "$SETTINGS.bak"
+  # settings.json 백업 (있는 경우만)
+  if [ -f "$SETTINGS" ]; then
+    cp "$SETTINGS" "$SETTINGS.bak"
+  else
+    echo "{\"hooks\":{}}" > "$SETTINGS"
+  fi
 
-  # SessionStart 배열에 훅 추가 (없으면 배열 생성)
   HOOK_JSON="{\"hooks\":[{\"type\":\"command\",\"command\":\"$HOOK_DEST\",\"timeout\":5}]}"
   jq --argjson hook "$HOOK_JSON" \
     '.hooks.SessionStart = (.hooks.SessionStart // []) + [$hook]' \
