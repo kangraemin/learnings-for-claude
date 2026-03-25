@@ -3,6 +3,8 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TARGET="${1:-$(pwd)}"
+SETTINGS="$HOME/.claude/settings.json"
+HOOK_DEST="$HOME/.claude/hooks/session-start-learnings.sh"
 
 echo "learnings-for-claude: $TARGET 에 설치 중..."
 
@@ -36,25 +38,20 @@ else
   echo "  ~/.claude/learnings/ 이미 존재 — 스킵"
 fi
 
-# 4. 글로벌 CLAUDE.md 규칙 추가 (확인 후)
-GLOBAL_CLAUDE="$HOME/.claude/CLAUDE.md"
-GLOBAL_MARKER="## 글로벌 Learnings"
-
-if [ -f "$GLOBAL_CLAUDE" ] && grep -qF "$GLOBAL_MARKER" "$GLOBAL_CLAUDE"; then
-  echo "  ~/.claude/CLAUDE.md 글로벌 규칙 이미 존재 — 스킵"
+# 4. SessionStart 훅 설치 (jq 필요)
+if ! command -v jq &>/dev/null; then
+  echo "  경고: jq 없음 — SessionStart 훅 스킵 (brew install jq 후 재설치 권장)"
+elif grep -qF "session-start-learnings" "$SETTINGS" 2>/dev/null; then
+  echo "  SessionStart 훅 이미 존재 — 스킵"
 else
-  echo ""
-  echo "  ~/.claude/CLAUDE.md 에 글로벌 규칙을 추가합니다."
-  echo "  (모든 Claude 세션에 적용됩니다)"
-  printf "  계속하시겠습니까? [y/N] "
-  read -r answer
-  if [[ "$answer" =~ ^[Yy]$ ]]; then
-    echo "" >> "$GLOBAL_CLAUDE"
-    cat "$SCRIPT_DIR/templates/global-claude-rules.md" >> "$GLOBAL_CLAUDE"
-    echo "  ~/.claude/CLAUDE.md 글로벌 규칙 추가"
-  else
-    echo "  스킵 — 글로벌 learnings는 비활성화됩니다"
-  fi
+  cp "$SCRIPT_DIR/hooks/session-start-learnings.sh" "$HOOK_DEST"
+  chmod +x "$HOOK_DEST"
+
+  # settings.json SessionStart 배열에 훅 추가
+  HOOK_JSON="{\"hooks\":[{\"type\":\"command\",\"command\":\"$HOOK_DEST\",\"timeout\":5}]}"
+  jq --argjson hook "$HOOK_JSON" '.hooks.SessionStart += [$hook]' "$SETTINGS" > "$SETTINGS.tmp"
+  mv "$SETTINGS.tmp" "$SETTINGS"
+  echo "  SessionStart 훅 등록"
 fi
 
 echo ""
