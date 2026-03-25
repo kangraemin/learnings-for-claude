@@ -26,8 +26,11 @@ else
   echo "  CLAUDE.md 규칙 추가"
 fi
 
-# 3. 글로벌 learnings 디렉토리 생성
+# 3. 글로벌 learnings 디렉토리 + 글로벌 CLAUDE.md 규칙 추가
 GLOBAL_DIR="$HOME/.claude/learnings"
+GLOBAL_CLAUDE="$HOME/.claude/CLAUDE.md"
+GLOBAL_MARKER="## 글로벌 Learnings"
+
 if [ ! -d "$GLOBAL_DIR" ]; then
   mkdir -p "$GLOBAL_DIR"
   cp "$SCRIPT_DIR/global/_template.md" "$GLOBAL_DIR/_template.md"
@@ -36,8 +39,13 @@ else
   echo "  ~/.claude/learnings/ 이미 존재 — 스킵"
 fi
 
+if [ -f "$GLOBAL_CLAUDE" ] && grep -qF "$GLOBAL_MARKER" "$GLOBAL_CLAUDE"; then
+  echo "  ~/.claude/CLAUDE.md 글로벌 규칙 이미 존재 — 스킵"
+else
+  echo "" >> "$GLOBAL_CLAUDE"
+  cat "$SCRIPT_DIR/templates/global-claude-rules.md" >> "$GLOBAL_CLAUDE"
+  echo "  ~/.claude/CLAUDE.md 글로벌 규칙 추가"
+fi
+
 echo ""
-echo "완료. 사용법:"
-echo "  - 실험 전: LEARNINGS.md 확인"
-echo "  - 실험 후: 새 원칙 LEARNINGS.md에 추가"
-echo "  - 크로스 프로젝트 원칙: ~/.claude/learnings/ 에 추가"
+echo "완료. Claude가 자동으로 학습을 기록합니다."
