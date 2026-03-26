@@ -50,8 +50,11 @@ HOOK_DIR="$HOME/.claude/hooks"
 
 [ -f "$HOOK_DIR/library-sync.sh" ] || { echo "  install.sh를 먼저 실행하세요."; exit 1; }
 
+LIB_DIR="$HOME/.claude/.claude-library"
+
 copy_if_changed "$PACKAGE_DIR/hooks/library-sync.sh" "$HOOK_DIR/library-sync.sh" "library-sync.sh (hook)"
 copy_if_changed "$PACKAGE_DIR/scripts/update-check.sh" "$HOOK_DIR/learnings-update-check.sh" "learnings-update-check.sh (script)"
+copy_if_changed "$PACKAGE_DIR/GUIDE.md" "$LIB_DIR/GUIDE.md" "GUIDE.md"
 
 # 버전 기록
 LATEST_SHA=$(git -C "$PACKAGE_DIR" rev-parse --short HEAD 2>/dev/null || echo "unknown")
