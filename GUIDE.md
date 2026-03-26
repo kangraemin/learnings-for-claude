@@ -6,23 +6,28 @@
 
 ```
 library/
-  quant/                        ← 카테고리
+  equity/                       ← 카테고리 (미국 주식/ETF 전략)
     fibonacci-retracement/      ← 주제
       index.md                  ← 주제 요약 + 하위 파일 목록
       backtest.md               ← 지식 파일
       article.md
     indicator-timing/
       index.md
-  ml/
+  crypto/                       ← 카테고리 (코인 전략)
+    bb-rsi-longshort/
+      index.md
+  ml/                           ← 카테고리 (머신러닝 모델)
     lgbm/
       index.md
-  claude/
+  macro/                        ← 카테고리 (거시경제)
+  claude/                       ← 카테고리 (Claude 행동 패턴)
     prompt-patterns/
       index.md
 ```
 
 ### 카테고리 예시
-- `quant` — 투자/백테스트/전략
+- `equity` — 미국 주식/ETF 전략, 레버리지 ETF
+- `crypto` — 코인 전략 (BTC/ETH/XRP 등)
 - `ml` — 머신러닝/모델
 - `macro` — 거시경제
 - `claude` — Claude 행동 패턴, 프롬프트
@@ -89,9 +94,12 @@ library/
 카테고리별로 주제 index.md를 링크한다.
 
 ```markdown
-## quant
-- [fibonacci-retracement](library/quant/fibonacci-retracement/index.md) — 한 줄 요약
-- [indicator-timing](library/quant/indicator-timing/index.md) — 한 줄 요약
+## equity
+- [fibonacci-retracement](library/equity/fibonacci-retracement/index.md) — 한 줄 요약
+- [indicator-timing](library/equity/indicator-timing/index.md) — 한 줄 요약
+
+## crypto
+- [bb-rsi-longshort](library/crypto/bb-rsi-longshort/index.md) — 한 줄 요약
 
 ## ml
 - [lgbm](library/ml/lgbm/index.md) — 한 줄 요약
