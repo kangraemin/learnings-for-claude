@@ -78,6 +78,8 @@ library/
 - 아티클/논문에서 유효한 인사이트를 얻었을 때
 - 사용자가 접근법을 수정했을 때
 - 더 나은 방법을 발견했을 때
+- **개발 중 삽질로 알게 된 API/라이브러리 동작** — 에러로 발견한 것, 문서에 없는 것, 다음에 또 삽질할 것 같은 것. 발견 즉시 기록한다. 사용자가 요청하기 전에.
+- 세션 종료/compact 시 — 위 경우를 놓쳤다면 그때 정리
 
 ## 지식 파일 형식
 
@@ -186,6 +188,7 @@ else
 - 아티클에서 유효한 인사이트를 얻었을 때
 - 사용자가 접근법을 수정했을 때
 - 더 나은 방법을 발견했을 때
+- **개발 중 삽질로 알게 된 API/라이브러리 동작** — 에러로 발견한 것, 문서에 없는 것, 다음에 또 삽질할 것 같은 것. 발견 즉시 기록한다. 사용자가 요청하기 전에.
 
 기록 방법:
 1. 카테고리 판단 (equity, crypto, ml, macro, claude 등)
@@ -217,7 +220,7 @@ LIB_DIR="$HOME/.claude/.claude-library"
 
 [ -f "$LIBRARY" ] || exit 0
 
-claude -p "이번 세션에서 ~/.claude/.claude-library/library/ 에 기록할 만한 결론이 있었는지 확인하고, 있다면 ~/.claude/.claude-library/GUIDE.md 형식에 따라 파일을 추가하고 ~/.claude/.claude-library/LIBRARY.md index를 업데이트해라. 없으면 아무것도 하지 마라." 2>/dev/null || true
+claude -p "이번 세션에서 ~/.claude/.claude-library/library/ 에 기록할 만한 내용이 있었는지 확인하고, 있다면 ~/.claude/.claude-library/GUIDE.md 형식에 따라 파일을 추가하고 ~/.claude/.claude-library/LIBRARY.md index를 업데이트해라. 기록 대상: 실험/백테스트 결론, 아티클 인사이트, 개발 중 삽질로 알게 된 API/라이브러리 동작 방식(에러로 발견한 것, 문서에 없는 것). 없으면 아무것도 하지 마라." 2>/dev/null || true
 
 # 새 파일 있으면 commit + push
 if [ -d "$LIB_DIR/.git" ] && [ -n "$(git -C "$LIB_DIR" status --porcelain 2>/dev/null)" ]; then
