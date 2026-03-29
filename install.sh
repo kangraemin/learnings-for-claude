@@ -488,6 +488,19 @@ EOF
   echo "  update-learnings 스킬 설치"
 fi
 
+# --- MCP 서버 등록 ---
+if command -v jq >/dev/null 2>&1; then
+  if python3 -m json.tool "$SETTINGS" 2>/dev/null | grep -q "claude-library-mcp\|claude-library"; then
+    echo "  MCP claude-library 이미 존재 — uvx로 업데이트"
+  fi
+  jq '.mcpServers["claude-library"] = {
+    "command": "uvx",
+    "args": ["claude-library-mcp"],
+    "env": {"LIBRARY_ROOT": ($home + "/.claude/.claude-library")}
+  }' --arg home "$HOME" "$SETTINGS" > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
+  echo "  MCP 서버 등록: claude-library-mcp (uvx)"
+fi
+
 echo ""
 echo "완료."
 echo "  library: ~/.claude/.claude-library/library/"

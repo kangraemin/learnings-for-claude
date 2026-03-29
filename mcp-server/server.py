@@ -120,5 +120,9 @@ def library_list() -> str:
     return _read_file(library_md)
 
 
-if __name__ == "__main__":
+def main():
     mcp.run()
+
+
+if __name__ == "__main__":
+    main()
