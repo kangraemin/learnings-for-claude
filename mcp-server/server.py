@@ -13,9 +13,11 @@ LIBRARY_ROOT = Path(os.environ.get("LIBRARY_ROOT", Path.home() / ".claude" / ".c
 mcp = FastMCP(
     "claude-library",
     instructions=(
-        "새 작업 시작 전, 뭔가 제안하기 전, 막히는 상황에서 반드시 library_search()로 관련 지식을 먼저 검색해라. "
-        "이미 시도했거나 실패한 접근법, 삽질로 알게 된 사실이 있을 수 있다. "
-        "검색 결과가 있으면 '📚 library 참조: [topic]' 한 줄로 알리고 이미 기록된 방향은 재제안하지 마라."
+        "기술적 질문에 답하거나 뭔가 제안하기 전에 library_search()를 무조건 호출해라. "
+        "결과가 없어도 호출은 해야 한다. "
+        "이미 시도했거나 실패한 접근법, 삽질로 알게 된 사실, 교정받은 내용이 있을 수 있다. "
+        "검색 결과가 있으면 '📚 library 참조: [topic]' 한 줄로 알리고 이미 기록된 방향은 재제안하지 마라. "
+        "결과가 없으면 그냥 넘어가라."
     )
 )
 
