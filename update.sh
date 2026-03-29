@@ -53,6 +53,7 @@ HOOK_DIR="$HOME/.claude/hooks"
 LIB_DIR="$HOME/.claude/.claude-library"
 
 copy_if_changed "$PACKAGE_DIR/hooks/library-sync.sh" "$HOOK_DIR/library-sync.sh" "library-sync.sh (hook)"
+copy_if_changed "$PACKAGE_DIR/hooks/library-save-check.sh" "$HOOK_DIR/library-save-check.sh" "library-save-check.sh (stop hook)"
 copy_if_changed "$PACKAGE_DIR/scripts/update-check.sh" "$HOOK_DIR/learnings-update-check.sh" "learnings-update-check.sh (script)"
 copy_if_changed "$PACKAGE_DIR/GUIDE.md" "$LIB_DIR/GUIDE.md" "GUIDE.md"
 

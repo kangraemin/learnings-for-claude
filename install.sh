@@ -260,6 +260,25 @@ EOF
   echo "  SessionEnd / PostCompact 훅 등록"
 fi
 
+# --- Stop hook: library 저장 체크 ---
+SAVE_CHECK_DEST="$CLAUDE_DIR/hooks/library-save-check.sh"
+
+if grep -qF "library-save-check" "$SETTINGS" 2>/dev/null; then
+  echo "  library-save-check 훅 이미 존재 — 스킵"
+elif ! command -v jq >/dev/null 2>&1; then
+  echo "  경고: jq 없음 — Stop 훅 스킵"
+else
+  cp "$SCRIPT_DIR/hooks/library-save-check.sh" "$SAVE_CHECK_DEST"
+  chmod +x "$SAVE_CHECK_DEST"
+
+  SAVE_CHECK_JSON="{\"hooks\":[{\"type\":\"command\",\"command\":\"$SAVE_CHECK_DEST\",\"timeout\":10}]}"
+  jq --argjson hook "$SAVE_CHECK_JSON" '
+    .hooks.Stop = (.hooks.Stop // []) + [$hook]
+  ' "$SETTINGS" > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
+
+  echo "  Stop 훅 등록: library-save-check.sh"
+fi
+
 # --- SessionStart 자동 업데이트 체크 훅 등록 ---
 UPDATE_CHECK_DEST="$CLAUDE_DIR/hooks/learnings-update-check.sh"
 
