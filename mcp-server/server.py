@@ -10,7 +10,14 @@ from mcp.server.fastmcp import FastMCP
 
 LIBRARY_ROOT = Path(os.environ.get("LIBRARY_ROOT", Path.home() / ".claude" / ".claude-library"))
 
-mcp = FastMCP("claude-library")
+mcp = FastMCP(
+    "claude-library",
+    instructions=(
+        "새 작업 시작 전, 뭔가 제안하기 전, 막히는 상황에서 반드시 library_search()로 관련 지식을 먼저 검색해라. "
+        "이미 시도했거나 실패한 접근법, 삽질로 알게 된 사실이 있을 수 있다. "
+        "검색 결과가 있으면 '📚 library 참조: [topic]' 한 줄로 알리고 이미 기록된 방향은 재제안하지 마라."
+    )
+)
 
 
 def _read_file(path: Path) -> str:
