@@ -412,8 +412,9 @@ Library 경로: `~/.claude/.claude-library/library/`
 
 ### 파일 작성 순서
 1. `~/.claude/.claude-library/library/[카테고리]/[주제]/[파일명].md` 생성
-2. 주제 `index.md` 생성 또는 업데이트
+2. 주제 `index.md` 생성 또는 업데이트 + `관련:` 태그 추가 (관련 주제가 있으면)
 3. `~/.claude/.claude-library/LIBRARY.md` 업데이트
+4. `~/.claude/CLAUDE.md` 목차에 새 주제 추가 (없으면)
 
 ### 지식 파일 형식
 ```markdown
@@ -480,6 +481,80 @@ if command -v jq >/dev/null 2>&1; then
     "env": {"LIBRARY_ROOT": ($home + "/.claude/.claude-library")}
   }' --arg home "$HOME" "$SETTINGS" > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
   echo "  MCP 서버 등록: claude-library-mcp (uvx)"
+fi
+
+# --- 프로젝트 디렉토리 스캔 ---
+echo ""
+echo "로컬 프로젝트를 스캔하여 library에 등록할 수 있습니다."
+echo "프로젝트가 있는 디렉토리를 입력하세요 (예: ~/programming)."
+printf "디렉토리 경로 [스킵하려면 Enter]: "
+read -r project_root </dev/tty
+
+if [ -n "$project_root" ]; then
+  project_root="${project_root/#\~/$HOME}"
+  if [ -d "$project_root" ]; then
+    PROJECT_LIB="$LIB_DIR/library/projects/local"
+    mkdir -p "$PROJECT_LIB"
+    INDEX_FILE="$PROJECT_LIB/index.md"
+
+    echo "# 로컬 프로젝트 디렉토리" > "$INDEX_FILE"
+    echo "" >> "$INDEX_FILE"
+    echo "## 요약" >> "$INDEX_FILE"
+    echo "$project_root 아래 활성 프로젝트 목록과 경로." >> "$INDEX_FILE"
+    echo "" >> "$INDEX_FILE"
+
+    CUTOFF=$(date -v-30d +%Y-%m-%d 2>/dev/null || date -d '30 days ago' +%Y-%m-%d 2>/dev/null)
+    for dir in "$project_root"/*/; do
+      [ -d "$dir/.git" ] || continue
+      name=$(basename "$dir")
+      last=$(git -C "$dir" log -1 --format="%ai" 2>/dev/null | cut -d' ' -f1)
+      [ -z "$last" ] && continue
+      if [[ "$last" > "$CUTOFF" ]] || [[ "$last" = "$CUTOFF" ]]; then
+        desc=$(head -5 "$dir/README.md" 2>/dev/null | grep -v '^#' | grep -v '^$' | grep -v '^<' | head -1)
+        [ -z "$desc" ] && desc="(설명 없음)"
+        echo "- \`$dir\` — $desc" >> "$INDEX_FILE"
+      fi
+    done
+
+    # LIBRARY.md에 projects 카테고리 추가
+    if ! grep -qF "## projects" "$LIB_DIR/LIBRARY.md" 2>/dev/null; then
+      echo "" >> "$LIB_DIR/LIBRARY.md"
+      echo "## projects" >> "$LIB_DIR/LIBRARY.md"
+      echo "- [local](library/projects/local/index.md) — 로컬 프로젝트 디렉토리 및 경로" >> "$LIB_DIR/LIBRARY.md"
+    fi
+
+    # CLAUDE.md 목차에 projects 추가
+    if grep -qF "### 목차" "$GLOBAL_CLAUDE" 2>/dev/null && ! grep -qF "projects:" "$GLOBAL_CLAUDE" 2>/dev/null; then
+      # 목차 섹션 마지막에 추가
+      sed -i '' '/^- projects:/d' "$GLOBAL_CLAUDE" 2>/dev/null
+      # 목차의 마지막 항목 뒤에 추가
+      python3 - "$GLOBAL_CLAUDE" << 'PYEOF'
+import sys
+f = sys.argv[1]
+lines = open(f).readlines()
+inserted = False
+for i in range(len(lines)-1, -1, -1):
+    if lines[i].startswith("- ") and "### 목차" in ''.join(lines[max(0,i-10):i]):
+        lines.insert(i+1, "- projects: local\n")
+        inserted = True
+        break
+if inserted:
+    open(f, 'w').writelines(lines)
+PYEOF
+    fi
+
+    count=$(grep -c '^\- ' "$INDEX_FILE" 2>/dev/null || echo 0)
+    echo "  프로젝트 $count개 스캔 완료"
+
+    # git repo면 커밋
+    if [ -d "$LIB_DIR/.git" ]; then
+      git -C "$LIB_DIR" add -A
+      git -C "$LIB_DIR" commit -q -m "feat: 로컬 프로젝트 디렉토리 추가" 2>/dev/null || true
+      git -C "$LIB_DIR" push -q 2>/dev/null || true
+    fi
+  else
+    echo "  경고: $project_root 디렉토리 없음 — 스킵"
+  fi
 fi
 
 echo ""
