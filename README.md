@@ -7,9 +7,10 @@
 A file-based knowledge library that Claude reads and writes on its own —
 so you never have to re-explain the same thing twice.
 
-[Install](#install) · [How It Works](#how-it-works) · [Storage Options](#storage-options) · [Notion Sync](#notion-sync-optional) · [Structure](#structure)
+[Install](#install) · [How It Works](#how-it-works) · [MCP Server](#mcp-server) · [Storage Options](#storage-options) · [Notion Sync](#notion-sync-optional) · [Structure](#structure)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/claude-library-mcp)](https://pypi.org/project/claude-library-mcp/)
 
 **English** | [한국어](README.ko.md)
 
@@ -21,11 +22,11 @@ so you never have to re-explain the same thing twice.
 
 Working with Claude across sessions, this happens:
 
-- You run an experiment. Claude helps you figure out it doesn't work.
-- Next session: Claude suggests the exact same experiment again.
-- You run it again. It fails again.
+- You debug an API gotcha. Claude helps you figure out the workaround.
+- Next session: Claude hits the exact same gotcha again.
+- You explain it again. And again.
 
-The results live in your files. The *lesson* lives nowhere.
+The fix is in your code. The *lesson* lives nowhere.
 
 This system keeps the lesson.
 
@@ -33,27 +34,33 @@ This system keeps the lesson.
 
 ## How It Works
 
-**Writing** — Claude logs automatically in these situations:
+**Writing** — Claude logs automatically when:
 
-- Experiment or backtest reaches a conclusion
-- You correct Claude's approach
-- A better method is found
-- Useful insight from an article or doc
-- An API gotcha discovered through a bug or error
+- An experiment or backtest reaches a conclusion
+- You correct Claude's approach ("that's not how it works")
+- A better method is discovered
+- An API/library gotcha is found through debugging
+- Useful insight from a doc or article
 
-At session end, a `SessionEnd` hook fires and Claude checks if anything is worth keeping. If yes, it writes a file and commits.
+A `SessionEnd` hook fires after each session. Claude reviews the conversation, judges if anything is worth keeping, and writes it to the library.
 
-**Reading** — Before suggesting an approach or when stuck, Claude reads `LIBRARY.md` index and pulls relevant entries.
+**Reading** — An MCP server (`claude-library-mcp`) makes the library searchable. Before answering technical questions or suggesting approaches, Claude searches the library for relevant past learnings.
 
 **The flow:**
 
 ```
 Session ends
     → SessionEnd hook fires
-    → Claude judges: anything worth logging?
-    → If yes: writes file under library/[category]/[topic]/
+    → Claude reviews: anything worth logging?
+    → If yes: writes to library/[category]/[subcategory]/[topic]/
     → Updates LIBRARY.md index
-    → git commit + push (if repo-managed)
+    → git commit + push
+    → Notion sync (if enabled)
+
+New session starts
+    → You ask a question
+    → MCP server searches library (index + body)
+    → Claude reads relevant entries before responding
 ```
 
 ---
@@ -64,13 +71,55 @@ Session ends
 bash <(curl -fsSL https://raw.githubusercontent.com/kangraemin/learnings-for-claude/main/install.sh)
 ```
 
-During install, you'll choose how to manage `.claude-library/` with git (see [Storage Options](#storage-options)).
+The installer supports English and Korean. During install, you'll choose:
+- How to manage `.claude-library/` with git ([Storage Options](#storage-options))
+- Whether to enable [Notion sync](#notion-sync-optional)
 
-## Uninstall
+### Update
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/kangraemin/learnings-for-claude/main/update.sh)
+```
+
+### Uninstall
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/kangraemin/learnings-for-claude/main/uninstall.sh)
 ```
+
+---
+
+## MCP Server
+
+The library is searchable via an MCP server published on PyPI.
+
+The installer configures this automatically in `~/.claude/settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "claude-library": {
+      "command": "uvx",
+      "args": ["claude-library-mcp"],
+      "env": {
+        "LIBRARY_ROOT": "~/.claude/.claude-library"
+      }
+    }
+  }
+}
+```
+
+### Search
+
+`library_search(query)` — Searches across topic names, file descriptions, categories, and file bodies. Uses tiered scoring (topic > filename > description > category > body) with AND-bias for multi-word queries and word boundary matching.
+
+### Tools
+
+| Tool | Description |
+|------|-------------|
+| `library_search(query)` | Search library by keywords |
+| `library_read(path)` | Read a specific library file |
+| `library_list()` | Show full LIBRARY.md index |
 
 ---
 
@@ -82,13 +131,13 @@ Choose during install:
 |--------|-------------|
 | **Local only** | No git. Files stay in `~/.claude/.claude-library/` |
 | **Include in ~/.claude repo** | Tracked inside your existing `~/.claude` git repo |
-| **Separate private repo** | Dedicated repo for the library. Clone an existing one or push fresh. Syncs across machines. |
+| **Separate private repo** | Dedicated repo for the library. Syncs across machines. |
 
 ---
 
 ## Notion Sync (Optional)
 
-You can mirror your library to a Notion database. When enabled, every library entry is automatically synced to Notion after git push.
+Mirror your library to a Notion database. When enabled, every library entry is automatically synced to Notion after git push.
 
 ### Setup
 
@@ -102,70 +151,69 @@ If yes, you'll need:
 - **NOTION_TOKEN** — [Create an internal integration](https://www.notion.so/my-integrations) and copy the token
 - **Notion page ID** — The page where the DB will be created (last 32 chars of the page URL)
 
-The installer creates an "AI Library" database with these columns:
+The installer creates an "AI Library" database:
 
 | Column | Type | Description |
 |--------|------|-------------|
-| Title | title | Entry name (from frontmatter `name` or first heading) |
-| Category | select | Top-level grouping (`dev`, `ml`, `finance`) |
+| Title | title | Entry name |
+| Category | select | Top-level (`dev`, `ml`, `finance`) |
 | Subcategory | select | Second level (`tooling`, `crypto`, `testing`) |
 | Topic | select | Specific subject (`claude-code`, `bb-rsi-longshort`) |
-| Tags | multi_select | Related topics (from `관련:` in index.md) |
-| Created | date | Entry date (frontmatter, body, or git log) |
+| Tags | multi_select | Related topics |
+| Created | date | Entry date |
 | Path | rich_text | File path in library |
-
-**Tip:** In Notion, group the table by `Category` for a library-like view, then hide the Category column.
 
 ### Migrate Existing Files
 
-If you already have library entries before enabling Notion:
-
 ```bash
-# Dry run — see what will be migrated
+# Dry run
 ~/.claude/scripts/notion-library-migrate.sh --dry-run
 
 # Migrate all
 ~/.claude/scripts/notion-library-migrate.sh
 
-# Migrate specific category only
+# Specific category only
 ~/.claude/scripts/notion-library-migrate.sh --category ml
 ```
-
-Already-migrated files are tracked in `.notion-migrated` to prevent duplicates.
 
 ---
 
 ## Structure
 
+Classification follows `TAXONOMY.md` — organized by domain/technique, not by tool or project name.
+
 ```
 ~/.claude/
   .claude-library/
-    LIBRARY.md        ← index of everything
-    GUIDE.md          ← writing guide for Claude
+    LIBRARY.md          ← searchable index
+    GUIDE.md            ← writing guide for Claude
+    TAXONOMY.md         ← classification rules
     library/
-      equity/         ← US stocks, ETF strategies
-      crypto/         ← BTC, ETH, etc.
-      ml/             ← models, features
-      macro/          ← macro factors
-      claude/         ← Claude behavior patterns
-      ...
+      dev/
+        tooling/        ← claude-code, mcp-patterns, ...
+        testing/        ← spring-isolation, ...
+      ml/
+        classification/ ← gradient-boosting, ...
+        time-series/
+      finance/
+        crypto/         ← bb-rsi-longshort, donchian, ...
+        equity/         ← cross-momentum, vol-targeting, ...
+      infra/            ← cicd, kaggle-env, ...
 ```
 
-All learnings from every project accumulate in one place.
-
-Each entry:
+Each knowledge file:
 
 ```markdown
 # [Title]
 
 - Date: YYYY-MM-DD
-- Source: [experiment / link / experience]
+- Source: [experiment / debugging / article]
 
-## Content
-What happened. Data, numbers, context.
+## What happened
+Context, data, error messages.
 
-## Takeaway
-What this means going forward.
+## Lesson
+What to do (or not do) next time.
 ```
 
 ---
@@ -174,9 +222,9 @@ What this means going forward.
 
 Claude is a great thinking partner. But every session starts from zero.
 
-You end up carrying the institutional memory yourself — re-explaining past failures, re-establishing context, re-correcting the same mistakes. That overhead compounds.
+You end up carrying the institutional memory yourself — re-explaining past failures, re-establishing context, re-correcting the same mistakes.
 
-This shifts the memory to where it belongs: the system, not you.
+This shifts the memory from you to the system.
 
 ---
 
