@@ -55,7 +55,25 @@ LIB_DIR="$HOME/.claude/.claude-library"
 copy_if_changed "$PACKAGE_DIR/hooks/library-sync.sh" "$HOOK_DIR/library-sync.sh" "library-sync.sh (hook)"
 copy_if_changed "$PACKAGE_DIR/hooks/library-save-check.sh" "$HOOK_DIR/library-save-check.sh" "library-save-check.sh (stop hook)"
 copy_if_changed "$PACKAGE_DIR/scripts/update-check.sh" "$HOOK_DIR/learnings-update-check.sh" "learnings-update-check.sh (script)"
+copy_if_changed "$PACKAGE_DIR/hooks/code-lesson-check.sh" "$HOOK_DIR/code-lesson-check.sh" "code-lesson-check.sh (stop hook)"
 copy_if_changed "$PACKAGE_DIR/GUIDE.md" "$LIB_DIR/GUIDE.md" "GUIDE.md"
+copy_if_changed "$PACKAGE_DIR/TAXONOMY.md" "$HOME/.claude/TAXONOMY.md" "TAXONOMY.md"
+
+# Notion library 스크립트 (있으면 업데이트)
+SCRIPTS_DIR="$HOME/.claude/scripts"
+if [ -f "$SCRIPTS_DIR/notion-library.sh" ]; then
+  copy_if_changed "$PACKAGE_DIR/scripts/notion-library.sh" "$SCRIPTS_DIR/notion-library.sh" "notion-library.sh (script)"
+  copy_if_changed "$PACKAGE_DIR/scripts/notion-library-create-db.sh" "$SCRIPTS_DIR/notion-library-create-db.sh" "notion-library-create-db.sh (script)"
+  copy_if_changed "$PACKAGE_DIR/scripts/notion-library-migrate.sh" "$SCRIPTS_DIR/notion-library-migrate.sh" "notion-library-migrate.sh (script)"
+fi
+
+# 스킬 업데이트
+SKILL_DIR="$HOME/.claude/skills"
+for skill in session-review update-learnings code-lesson; do
+  if [ -f "$PACKAGE_DIR/skills/$skill/SKILL.md" ]; then
+    copy_if_changed "$PACKAGE_DIR/skills/$skill/SKILL.md" "$SKILL_DIR/$skill/SKILL.md" "$skill (skill)"
+  fi
+done
 
 # ~/.claude/CLAUDE.md Library 섹션 업데이트
 GLOBAL_CLAUDE="$HOME/.claude/CLAUDE.md"

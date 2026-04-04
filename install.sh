@@ -7,25 +7,46 @@ LIB_DIR="$CLAUDE_DIR/.claude-library"
 SETTINGS="$CLAUDE_DIR/settings.json"
 HOOK_DEST="$CLAUDE_DIR/hooks/library-sync.sh"
 
-echo "learnings-for-claude 설치 중..."
+# --- 언어 선택 / Language selection ---
+echo "Select language / 언어를 선택하세요"
+echo "  1) 한국어"
+echo "  2) English"
+printf ">>> "
+read -r _lang_choice </dev/tty
+if [ "$_lang_choice" = "2" ]; then
+  _LANG=en
+else
+  _LANG=ko
+fi
+
+msg() {
+  if [ "$_LANG" = "en" ]; then
+    printf '%s' "$2"
+  else
+    printf '%s' "$1"
+  fi
+}
+
+echo ""
+echo "$(msg 'learnings-for-claude 설치 중...' 'Installing learnings-for-claude...')"
 echo ""
 
 # --- git 관리 방식 결정 ---
 if git -C "$CLAUDE_DIR" rev-parse --git-dir >/dev/null 2>&1; then
-  echo "~/.claude 가 git repo로 감지됐습니다."
-  echo ".claude-library/ 를 어떻게 관리하시겠습니까?"
-  echo "  1) git 추적 안 함 (.gitignore에 추가)"
-  echo "  2) 기존 ~/.claude repo에 포함"
-  echo "  3) 별도 private repo로 관리"
-  printf "선택 [1/2/3]: "
+  echo "$(msg '~/.claude 가 git repo로 감지됐습니다.' '~/.claude detected as a git repo.')"
+  echo "$(msg '.claude-library/ 를 어떻게 관리하시겠습니까?' 'How would you like to manage .claude-library/?')"
+  echo "  1) $(msg 'git 추적 안 함 (.gitignore에 추가)' 'Do not track in git (add to .gitignore)')"
+  echo "  2) $(msg '기존 ~/.claude repo에 포함' 'Include in existing ~/.claude repo')"
+  echo "  3) $(msg '별도 private repo로 관리' 'Manage as a separate private repo')"
+  printf "$(msg '선택' 'Select') [1/2/3]: "
   read -r git_choice </dev/tty
   IS_GIT=true
 else
-  echo "~/.claude 가 git repo가 아닙니다."
-  echo ".claude-library/ 를 어떻게 관리하시겠습니까?"
-  echo "  1) 로컬만 유지 (git 없음)"
-  echo "  2) private repo로 관리"
-  printf "선택 [1/2]: "
+  echo "$(msg '~/.claude 가 git repo가 아닙니다.' '~/.claude is not a git repo.')"
+  echo "$(msg '.claude-library/ 를 어떻게 관리하시겠습니까?' 'How would you like to manage .claude-library/?')"
+  echo "  1) $(msg '로컬만 유지 (git 없음)' 'Keep local only (no git)')"
+  echo "  2) $(msg 'private repo로 관리' 'Manage as a private repo')"
+  printf "$(msg '선택' 'Select') [1/2]: "
   read -r git_choice </dev/tty
   IS_GIT=false
 fi
@@ -105,6 +126,12 @@ library/
 EOF
 fi
 
+if [ ! -f "$HOME/.claude/TAXONOMY.md" ]; then
+  curl -sf --max-time 10 "https://raw.githubusercontent.com/kangraemin/learnings-for-claude/main/TAXONOMY.md" \
+    -o "$HOME/.claude/TAXONOMY.md" 2>/dev/null || \
+  cp "$SCRIPT_DIR/TAXONOMY.md" "$HOME/.claude/TAXONOMY.md" 2>/dev/null || true
+fi
+
 if [ ! -f "$LIB_DIR/library/_template.md" ]; then
   cat > "$LIB_DIR/library/_template.md" << 'EOF'
 # [제목]
@@ -120,7 +147,7 @@ if [ ! -f "$LIB_DIR/library/_template.md" ]; then
 EOF
 fi
 
-echo "  ~/.claude/.claude-library/ 생성"
+echo "  $(msg '~/.claude/.claude-library/ 생성' '~/.claude/.claude-library/ created')"
 
 # --- git 설정 ---
 NEED_GITIGNORE=false
@@ -143,35 +170,33 @@ if [ "$NEED_GITIGNORE" = true ]; then
   GITIGNORE="$CLAUDE_DIR/.gitignore"
   if ! grep -qF ".claude-library/" "$GITIGNORE" 2>/dev/null; then
     echo ".claude-library/" >> "$GITIGNORE"
-    echo "  .gitignore에 .claude-library/ 추가"
+    echo "  $(msg '.gitignore에 .claude-library/ 추가' 'Added .claude-library/ to .gitignore')"
   fi
 fi
 
 if [ "$NEED_REPO" = true ]; then
-  printf "  기존 private repo가 있나요? [y/n]: "
+  printf "  $(msg '기존 private repo가 있나요?' 'Do you have an existing private repo?') [y/n]: "
   read -r has_existing </dev/tty
-  printf "  private repo URL을 입력하세요: "
+  printf "  $(msg 'private repo URL을 입력하세요' 'Enter private repo URL'): "
   read -r repo_url </dev/tty
   if [ -z "$repo_url" ]; then
-    echo "  오류: repo URL을 입력해야 합니다. 설치를 중단합니다."
+    echo "  $(msg '오류: repo URL을 입력해야 합니다. 설치를 중단합니다.' 'Error: repo URL is required. Aborting installation.')"
     exit 1
   fi
   if [ "$has_existing" = "y" ] || [ "$has_existing" = "Y" ]; then
     # 기존 repo → clone 후 템플릿 파일만 보완
     TMPDIR_INIT=$(mktemp -d)
-    cp -r "$LIB_DIR/." "$TMPDIR_INIT/"  # 방금 생성한 템플릿 임시 보관
+    cp -r "$LIB_DIR/." "$TMPDIR_INIT/"
     rm -rf "$LIB_DIR"
     if git clone -q "$repo_url" "$LIB_DIR" 2>/dev/null; then
-      # 기존 repo에 없는 파일만 보완
       [ -f "$LIB_DIR/GUIDE.md" ] || cp "$TMPDIR_INIT/GUIDE.md" "$LIB_DIR/"
       [ -f "$LIB_DIR/LIBRARY.md" ] || cp "$TMPDIR_INIT/LIBRARY.md" "$LIB_DIR/"
       mkdir -p "$LIB_DIR/library"
       [ -f "$LIB_DIR/library/_template.md" ] || cp "$TMPDIR_INIT/library/_template.md" "$LIB_DIR/library/"
-      echo "  기존 repo clone 완료"
+      echo "  $(msg '기존 repo clone 완료' 'Cloned existing repo')"
     else
-      # clone 실패 시 복원 후 종료
       mv "$TMPDIR_INIT" "$LIB_DIR"
-      echo "  오류: repo clone 실패. URL을 확인하세요."
+      echo "  $(msg '오류: repo clone 실패. URL을 확인하세요.' 'Error: repo clone failed. Check the URL.')"
       exit 1
     fi
     rm -rf "$TMPDIR_INIT"
@@ -182,9 +207,9 @@ if [ "$NEED_REPO" = true ]; then
       git -C "$LIB_DIR" remote add origin "$repo_url"
     fi
     git -C "$LIB_DIR" add -A
-    git -C "$LIB_DIR" commit -q -m "feat: learnings-for-claude 초기 설정" 2>/dev/null || true
+    git -C "$LIB_DIR" commit -q -m "feat: learnings-for-claude initial setup" 2>/dev/null || true
     git -C "$LIB_DIR" push -u origin HEAD
-    echo "  새 repo 초기화 및 push 완료"
+    echo "  $(msg '새 repo 초기화 및 push 완료' 'Initialized and pushed new repo')"
   fi
 fi
 
@@ -196,25 +221,23 @@ RULES_SRC="$SCRIPT_DIR/templates/claude-rules.md"
 _inject_rules() {
   local target="$1"
   if [ ! -f "$RULES_SRC" ]; then
-    echo "  경고: templates/claude-rules.md 없음 — 스킵"
+    echo "  $(msg '경고: templates/claude-rules.md 없음 — 스킵' 'Warning: templates/claude-rules.md not found — skipped')"
     return
   fi
   if grep -qF "$MARKER" "$target" 2>/dev/null; then
-    # 기존 섹션을 최신 내용으로 교체
     python3 - "$target" "$RULES_SRC" << 'PYEOF'
 import sys, re
 target, src = sys.argv[1], sys.argv[2]
 content = open(target).read()
 new_rules = "\n" + open(src).read()
-# ## Library 시스템 섹션을 파일 끝까지(또는 다음 ## 섹션 전까지) 교체
 updated = re.sub(r'\n## Library 시스템.*', new_rules, content, flags=re.DOTALL)
 open(target, 'w').write(updated)
 PYEOF
-    echo "  ~/.claude/CLAUDE.md 규칙 업데이트"
+    echo "  $(msg '~/.claude/CLAUDE.md 규칙 업데이트' '~/.claude/CLAUDE.md rules updated')"
   else
     printf "\n" >> "$target"
     cat "$RULES_SRC" >> "$target"
-    echo "  ~/.claude/CLAUDE.md 규칙 추가"
+    echo "  $(msg '~/.claude/CLAUDE.md 규칙 추가' '~/.claude/CLAUDE.md rules added')"
   fi
 }
 
@@ -222,9 +245,9 @@ _inject_rules "$GLOBAL_CLAUDE"
 
 # --- SessionEnd / PostCompact 훅 등록 ---
 if ! command -v jq >/dev/null 2>&1; then
-  echo "  경고: jq 없음 — 훅 스킵 (brew install jq 후 재설치 권장)"
+  echo "  $(msg '경고: jq 없음 — 훅 스킵 (brew install jq 후 재설치 권장)' 'Warning: jq not found — hooks skipped (install jq and re-run)')"
 elif grep -qF "library-sync" "$SETTINGS" 2>/dev/null; then
-  echo "  훅 이미 존재 — 스킵"
+  echo "  $(msg '훅 이미 존재 — 스킵' 'Hooks already exist — skipped')"
 else
   mkdir -p "$(dirname "$HOOK_DEST")"
   cp "$SCRIPT_DIR/hooks/library-sync.sh" "$HOOK_DEST"
@@ -238,16 +261,16 @@ else
     .hooks.PostCompact = (.hooks.PostCompact // []) + [$hook]
   ' "$SETTINGS" > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
 
-  echo "  SessionEnd / PostCompact 훅 등록"
+  echo "  $(msg 'SessionEnd / PostCompact 훅 등록' 'SessionEnd / PostCompact hooks registered')"
 fi
 
 # --- Stop hook: library 저장 체크 ---
 SAVE_CHECK_DEST="$CLAUDE_DIR/hooks/library-save-check.sh"
 
 if grep -qF "library-save-check" "$SETTINGS" 2>/dev/null; then
-  echo "  library-save-check 훅 이미 존재 — 스킵"
+  echo "  $(msg 'library-save-check 훅 이미 존재 — 스킵' 'library-save-check hook already exists — skipped')"
 elif ! command -v jq >/dev/null 2>&1; then
-  echo "  경고: jq 없음 — Stop 훅 스킵"
+  echo "  $(msg '경고: jq 없음 — Stop 훅 스킵' 'Warning: jq not found — Stop hook skipped')"
 else
   cp "$SCRIPT_DIR/hooks/library-save-check.sh" "$SAVE_CHECK_DEST"
   chmod +x "$SAVE_CHECK_DEST"
@@ -257,14 +280,14 @@ else
     .hooks.Stop = (.hooks.Stop // []) + [$hook]
   ' "$SETTINGS" > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
 
-  echo "  Stop 훅 등록: library-save-check.sh"
+  echo "  $(msg 'Stop 훅 등록: library-save-check.sh' 'Stop hook registered: library-save-check.sh')"
 fi
 
 # --- SessionStart 자동 업데이트 체크 훅 등록 ---
 UPDATE_CHECK_DEST="$CLAUDE_DIR/hooks/learnings-update-check.sh"
 
 if grep -qF "learnings-update-check" "$SETTINGS" 2>/dev/null; then
-  echo "  자동 업데이트 훅 이미 존재 — 스킵"
+  echo "  $(msg '자동 업데이트 훅 이미 존재 — 스킵' 'Auto-update hook already exists — skipped')"
 else
   cat > "$UPDATE_CHECK_DEST" << 'EOF'
 #!/bin/bash
@@ -337,7 +360,7 @@ CLONE_DIR=$(mktemp -d)
 trap 'rm -rf "$CLONE_DIR"' EXIT
 git clone --depth 1 "https://github.com/$REPO.git" "$CLONE_DIR/learnings-for-claude" -q 2>/dev/null || exit 0
 bash "$CLONE_DIR/learnings-for-claude/update.sh" || exit 0
-echo "learnings-for-claude $INSTALLED_SHA → $LATEST_SHA 업데이트 완료"
+echo "learnings-for-claude $INSTALLED_SHA → $LATEST_SHA updated"
 EOF
 
   chmod +x "$UPDATE_CHECK_DEST"
@@ -354,13 +377,13 @@ EOF
     python3 -c "import json,sys; print(json.load(sys.stdin)['sha'][:7])" \
     > "$CLAUDE_DIR/hooks/.learnings-version" 2>/dev/null || true
 
-  echo "  SessionStart 자동 업데이트 체크 등록"
+  echo "  $(msg 'SessionStart 자동 업데이트 체크 등록' 'SessionStart auto-update check registered')"
 fi
 
 # --- session-review 스킬 설치 ---
 SKILL_DIR="$CLAUDE_DIR/skills/session-review"
 if [ -d "$SKILL_DIR" ]; then
-  echo "  session-review 스킬 이미 존재 — 스킵"
+  echo "  $(msg 'session-review 스킬 이미 존재 — 스킵' 'session-review skill already exists — skipped')"
 else
   mkdir -p "$SKILL_DIR"
   cat > "$SKILL_DIR/SKILL.md" << 'EOF'
@@ -436,13 +459,13 @@ git -C ~/.claude/.claude-library push
 
 저장 후: `📚 library에 추가: [경로]` 한 줄로 알린다.
 EOF
-  echo "  session-review 스킬 설치"
+  echo "  $(msg 'session-review 스킬 설치' 'session-review skill installed')"
 fi
 
 # --- update-learnings 스킬 설치 ---
 SKILL_DIR="$CLAUDE_DIR/skills/update-learnings"
 if [ -d "$SKILL_DIR" ]; then
-  echo "  update-learnings 스킬 이미 존재 — 스킵"
+  echo "  $(msg 'update-learnings 스킬 이미 존재 — 스킵' 'update-learnings skill already exists — skipped')"
 else
   mkdir -p "$SKILL_DIR"
   cat > "$SKILL_DIR/SKILL.md" << 'EOF'
@@ -464,27 +487,145 @@ description: learnings-for-claude 최신 버전 확인 및 업데이트
 4. 업데이트 확인 시 `bash "~/.claude/hooks/learnings-update-check.sh" --force` 실행
 5. 완료 메시지 출력
 EOF
-  echo "  update-learnings 스킬 설치"
+  echo "  $(msg 'update-learnings 스킬 설치' 'update-learnings skill installed')"
+fi
+
+# --- code-lesson 스킬 설치 ---
+SKILL_DIR="$CLAUDE_DIR/skills/code-lesson"
+if [ -d "$SKILL_DIR" ]; then
+  echo "  $(msg 'code-lesson 스킬 이미 존재 — 업데이트' 'code-lesson skill already exists — updating')"
+fi
+mkdir -p "$SKILL_DIR"
+cp "$SCRIPT_DIR/skills/code-lesson/SKILL.md" "$SKILL_DIR/SKILL.md"
+echo "  $(msg 'code-lesson 스킬 설치' 'code-lesson skill installed')"
+
+# --- code-lesson Stop hook 등록 ---
+CODE_LESSON_DEST="$CLAUDE_DIR/hooks/code-lesson-check.sh"
+
+if grep -qF "code-lesson-check" "$SETTINGS" 2>/dev/null; then
+  echo "  $(msg 'code-lesson-check 훅 이미 존재 — 스킵' 'code-lesson-check hook already exists — skipped')"
+elif ! command -v jq >/dev/null 2>&1; then
+  echo "  $(msg '경고: jq 없음 — code-lesson 훅 스킵' 'Warning: jq not found — code-lesson hook skipped')"
+else
+  cp "$SCRIPT_DIR/hooks/code-lesson-check.sh" "$CODE_LESSON_DEST"
+  chmod +x "$CODE_LESSON_DEST"
+
+  CODE_LESSON_JSON="{\"hooks\":[{\"type\":\"command\",\"command\":\"$CODE_LESSON_DEST\",\"timeout\":10}]}"
+  jq --argjson hook "$CODE_LESSON_JSON" '
+    .hooks.Stop = (.hooks.Stop // []) + [$hook]
+  ' "$SETTINGS" > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
+
+  echo "  $(msg 'Stop 훅 등록: code-lesson-check.sh' 'Stop hook registered: code-lesson-check.sh')"
 fi
 
 # --- MCP 서버 등록 ---
 if command -v jq >/dev/null 2>&1; then
   if python3 -m json.tool "$SETTINGS" 2>/dev/null | grep -q "claude-library-mcp\|claude-library"; then
-    echo "  MCP claude-library 이미 존재 — uvx로 업데이트"
+    echo "  $(msg 'MCP claude-library 이미 존재 — uvx로 업데이트' 'MCP claude-library already exists — updating via uvx')"
   fi
   jq '.mcpServers["claude-library"] = {
     "command": "uvx",
     "args": ["claude-library-mcp"],
     "env": {"LIBRARY_ROOT": ($home + "/.claude/.claude-library")}
   }' --arg home "$HOME" "$SETTINGS" > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
-  echo "  MCP 서버 등록: claude-library-mcp (uvx)"
+  echo "  $(msg 'MCP 서버 등록: claude-library-mcp (uvx)' 'MCP server registered: claude-library-mcp (uvx)')"
 fi
+
+# --- Library Notion 연동 (선택) ---
+echo ""
+printf "$(msg 'Library를 Notion에도 연동할까요?' 'Sync Library to Notion?') [y/N]: "
+read -r notion_lib </dev/tty
+
+if [ "$notion_lib" = "y" ] || [ "$notion_lib" = "Y" ]; then
+  # notion-library 스크립트 복사
+  NOTION_LIB_SCRIPT="$CLAUDE_DIR/scripts/notion-library.sh"
+  NOTION_LIB_CREATE="$CLAUDE_DIR/scripts/notion-library-create-db.sh"
+  NOTION_LIB_MIGRATE="$CLAUDE_DIR/scripts/notion-library-migrate.sh"
+  mkdir -p "$CLAUDE_DIR/scripts"
+  cp "$SCRIPT_DIR/scripts/notion-library.sh" "$NOTION_LIB_SCRIPT"
+  cp "$SCRIPT_DIR/scripts/notion-library-create-db.sh" "$NOTION_LIB_CREATE"
+  cp "$SCRIPT_DIR/scripts/notion-library-migrate.sh" "$NOTION_LIB_MIGRATE"
+  chmod +x "$NOTION_LIB_SCRIPT" "$NOTION_LIB_CREATE" "$NOTION_LIB_MIGRATE"
+
+  # NOTION_TOKEN 확인
+  NOTION_TOKEN=""
+  for _envfile in "$HOME/.claude/.env" ${AI_WORKLOG_DIR:+"$AI_WORKLOG_DIR/.env"}; do
+    if [ -f "$_envfile" ]; then
+      _val=$(grep -E '^NOTION_TOKEN=' "$_envfile" 2>/dev/null | tail -1 | cut -d'=' -f2-)
+      [ -n "$_val" ] && NOTION_TOKEN="$_val"
+    fi
+  done
+
+  if [ -z "$NOTION_TOKEN" ]; then
+    echo "  $(msg 'NOTION_TOKEN이 필요합니다.' 'NOTION_TOKEN is required.')"
+    echo "  $(msg 'Notion 통합 페이지에서 Internal Integration Token을 발급받으세요.' 'Get an Internal Integration Token from Notion integrations page.')"
+    printf "  NOTION_TOKEN: "
+    read -r NOTION_TOKEN </dev/tty
+    if [ -n "$NOTION_TOKEN" ]; then
+      echo "NOTION_TOKEN=$NOTION_TOKEN" >> "$HOME/.claude/.env"
+      echo "  $(msg '~/.claude/.env에 NOTION_TOKEN 저장' 'NOTION_TOKEN saved to ~/.claude/.env')"
+    fi
+  else
+    echo "  $(msg 'NOTION_TOKEN 감지됨' 'NOTION_TOKEN detected')"
+  fi
+
+  if [ -n "$NOTION_TOKEN" ]; then
+    echo ""
+    echo "  $(msg 'Library DB를 어떻게 설정할까요?' 'How would you like to set up the Library DB?')"
+    echo "    1) $(msg '새 DB 자동 생성 (Notion 페이지 ID 필요)' 'Create new DB automatically (Notion page ID required)')"
+    echo "    2) $(msg '기존 DB ID 직접 입력' 'Enter existing DB ID')"
+    printf "  $(msg '선택' 'Select') [1/2]: "
+    read -r db_choice </dev/tty
+
+    LIBRARY_NOTION_DB_ID=""
+    if [ "$db_choice" = "1" ]; then
+      echo "  $(msg 'DB를 생성할 Notion 페이지의 ID를 입력하세요.' 'Enter the Notion page ID where the DB will be created.')"
+      echo "  $(msg '(페이지 URL의 마지막 32자리 또는 하이픈 포함 ID)' '(Last 32 characters of the page URL, or hyphenated ID)')"
+      printf "  $(msg '페이지 ID' 'Page ID'): "
+      read -r page_id </dev/tty
+      if [ -n "$page_id" ]; then
+        LIBRARY_NOTION_DB_ID=$(NOTION_TOKEN="$NOTION_TOKEN" bash "$NOTION_LIB_CREATE" "$page_id" 2>/dev/null) || true
+        if [ -n "$LIBRARY_NOTION_DB_ID" ]; then
+          echo "  $(msg 'DB 생성 완료' 'DB created'): $LIBRARY_NOTION_DB_ID"
+        else
+          echo "  $(msg 'DB 생성 실패. 나중에 수동으로 설정할 수 있습니다.' 'DB creation failed. You can configure it manually later.')"
+        fi
+      fi
+    elif [ "$db_choice" = "2" ]; then
+      printf "  Library Notion DB ID: "
+      read -r LIBRARY_NOTION_DB_ID </dev/tty
+    fi
+
+    # settings.json에 LIBRARY_NOTION_DB_ID 추가
+    if [ -n "$LIBRARY_NOTION_DB_ID" ] && command -v jq >/dev/null 2>&1; then
+      jq --arg dbid "$LIBRARY_NOTION_DB_ID" '.env.LIBRARY_NOTION_DB_ID = $dbid' \
+        "$SETTINGS" > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
+      echo "  $(msg 'settings.json에 LIBRARY_NOTION_DB_ID 등록' 'LIBRARY_NOTION_DB_ID registered in settings.json')"
+      echo ""
+      echo "  $(msg 'Notion 연동 완료! Library 저장 시 Notion에도 자동 동기화됩니다.' 'Notion sync enabled! Library entries will auto-sync to Notion.')"
+
+      # 기존 library 파일이 있으면 마이그레이션 제안
+      EXISTING_COUNT=$(find "$LIB_DIR/library" -name '*.md' -type f \
+        ! -name '_template.md' ! -name 'index.md' 2>/dev/null | wc -l | tr -d ' ')
+      if [ "$EXISTING_COUNT" -gt 0 ]; then
+        echo ""
+        printf "  $(msg "기존 library 파일 ${EXISTING_COUNT}개를 Notion에 마이그레이션할까요?" "Migrate ${EXISTING_COUNT} existing library files to Notion?") [y/N]: "
+        read -r migrate_choice </dev/tty
+        if [ "$migrate_choice" = "y" ] || [ "$migrate_choice" = "Y" ]; then
+          LIBRARY_NOTION_DB_ID="$LIBRARY_NOTION_DB_ID" bash "$NOTION_LIB_MIGRATE" "$LIB_DIR"
+        fi
+      fi
+    fi
+  fi
+fi
+
+echo ""
 
 # --- 프로젝트 디렉토리 스캔 ---
 echo ""
-echo "로컬 프로젝트를 스캔하여 library에 등록할 수 있습니다."
-echo "프로젝트가 있는 디렉토리를 입력하세요 (예: ~/programming)."
-printf "디렉토리 경로 [스킵하려면 Enter]: "
+echo "$(msg '로컬 프로젝트를 스캔하여 library에 등록할 수 있습니다.' 'You can scan local projects and register them in the library.')"
+echo "$(msg '프로젝트가 있는 디렉토리를 입력하세요 (예: ~/programming).' 'Enter the directory containing your projects (e.g., ~/programming).')"
+printf "$(msg '디렉토리 경로 [스킵하려면 Enter]' 'Directory path [Enter to skip]'): "
 read -r project_root </dev/tty
 
 if [ -n "$project_root" ]; then
@@ -494,10 +635,10 @@ if [ -n "$project_root" ]; then
     mkdir -p "$PROJECT_LIB"
     INDEX_FILE="$PROJECT_LIB/index.md"
 
-    echo "# 로컬 프로젝트 디렉토리" > "$INDEX_FILE"
+    echo "# $(msg '로컬 프로젝트 디렉토리' 'Local Project Directory')" > "$INDEX_FILE"
     echo "" >> "$INDEX_FILE"
-    echo "## 요약" >> "$INDEX_FILE"
-    echo "$project_root 아래 활성 프로젝트 목록과 경로." >> "$INDEX_FILE"
+    echo "## $(msg '요약' 'Summary')" >> "$INDEX_FILE"
+    echo "$(msg "$project_root 아래 활성 프로젝트 목록과 경로." "Active projects under $project_root.")" >> "$INDEX_FILE"
     echo "" >> "$INDEX_FILE"
 
     CUTOFF=$(date -v-30d +%Y-%m-%d 2>/dev/null || date -d '30 days ago' +%Y-%m-%d 2>/dev/null)
@@ -508,7 +649,7 @@ if [ -n "$project_root" ]; then
       [ -z "$last" ] && continue
       if [[ "$last" > "$CUTOFF" ]] || [[ "$last" = "$CUTOFF" ]]; then
         desc=$(head -5 "$dir/README.md" 2>/dev/null | grep -v '^#' | grep -v '^$' | grep -v '^<' | head -1)
-        [ -z "$desc" ] && desc="(설명 없음)"
+        [ -z "$desc" ] && desc="$(msg '(설명 없음)' '(no description)')"
         echo "- \`$dir\` — $desc" >> "$INDEX_FILE"
       fi
     done
@@ -517,14 +658,12 @@ if [ -n "$project_root" ]; then
     if ! grep -qF "## projects" "$LIB_DIR/LIBRARY.md" 2>/dev/null; then
       echo "" >> "$LIB_DIR/LIBRARY.md"
       echo "## projects" >> "$LIB_DIR/LIBRARY.md"
-      echo "- [local](library/projects/local/index.md) — 로컬 프로젝트 디렉토리 및 경로" >> "$LIB_DIR/LIBRARY.md"
+      echo "- [local](library/projects/local/index.md) — $(msg '로컬 프로젝트 디렉토리 및 경로' 'Local project directories and paths')" >> "$LIB_DIR/LIBRARY.md"
     fi
 
     # CLAUDE.md 목차에 projects 추가
     if grep -qF "### 목차" "$GLOBAL_CLAUDE" 2>/dev/null && ! grep -qF "projects:" "$GLOBAL_CLAUDE" 2>/dev/null; then
-      # 목차 섹션 마지막에 추가
       sed -i '' '/^- projects:/d' "$GLOBAL_CLAUDE" 2>/dev/null
-      # 목차의 마지막 항목 뒤에 추가
       python3 - "$GLOBAL_CLAUDE" << 'PYEOF'
 import sys
 f = sys.argv[1]
@@ -541,20 +680,20 @@ PYEOF
     fi
 
     count=$(grep -c '^\- ' "$INDEX_FILE" 2>/dev/null || echo 0)
-    echo "  프로젝트 $count개 스캔 완료"
+    echo "  $(msg "프로젝트 ${count}개 스캔 완료" "${count} projects scanned")"
 
     # git repo면 커밋
     if [ -d "$LIB_DIR/.git" ]; then
       git -C "$LIB_DIR" add -A
-      git -C "$LIB_DIR" commit -q -m "feat: 로컬 프로젝트 디렉토리 추가" 2>/dev/null || true
+      git -C "$LIB_DIR" commit -q -m "feat: local project directory added" 2>/dev/null || true
       git -C "$LIB_DIR" push -q 2>/dev/null || true
     fi
   else
-    echo "  경고: $project_root 디렉토리 없음 — 스킵"
+    echo "  $(msg "경고: $project_root 디렉토리 없음 — 스킵" "Warning: $project_root not found — skipped")"
   fi
 fi
 
 echo ""
-echo "완료."
+echo "$(msg '완료.' 'Done.')"
 echo "  library: ~/.claude/.claude-library/library/"
 echo "  index:   ~/.claude/.claude-library/LIBRARY.md"

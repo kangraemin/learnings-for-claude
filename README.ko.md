@@ -7,7 +7,7 @@
 Claude가 스스로 읽고 쓰는 파일 기반 지식 라이브러리 —
 같은 내용을 두 번 다시 설명하지 않아도 됩니다.
 
-[설치](#설치) · [작동 방식](#작동-방식) · [저장 관리 방식](#저장-관리-방식) · [구조](#구조)
+[설치](#설치) · [작동 방식](#작동-방식) · [저장 관리 방식](#저장-관리-방식) · [Notion 연동](#notion-연동-선택) · [구조](#구조)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -83,6 +83,55 @@ bash <(curl -fsSL https://raw.githubusercontent.com/kangraemin/learnings-for-cla
 | **로컬 파일만** | git 없이 `~/.claude/.claude-library/`에만 저장 |
 | **~/.claude repo에 포함** | 기존 `~/.claude` git repo 안에서 함께 추적 |
 | **별도 private repo** | library 전용 repo로 분리 관리. 기존 repo clone 또는 새로 생성 가능. 여러 기기 간 동기화 가능. |
+
+---
+
+## Notion 연동 (선택)
+
+Library를 Notion 데이터베이스에 미러링할 수 있습니다. 활성화하면 library 저장 시 git push 후 Notion에도 자동 동기화됩니다.
+
+### 설정
+
+`install.sh` 실행 중 아래 질문이 나옵니다:
+
+```
+Library를 Notion에도 연동할까요? [y/N]
+```
+
+Yes 선택 시 필요한 것:
+- **NOTION_TOKEN** — [Notion 통합 페이지](https://www.notion.so/my-integrations)에서 Internal Integration 생성 후 토큰 복사
+- **Notion 페이지 ID** — DB가 생성될 페이지 (페이지 URL의 마지막 32자리)
+
+설치 시 "AI Library" 데이터베이스가 자동 생성됩니다:
+
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| Title | title | 항목 이름 (frontmatter `name` 또는 첫 번째 헤딩) |
+| Category | select | 대분류 (`dev`, `ml`, `finance`) |
+| Subcategory | select | 중분류 (`tooling`, `crypto`, `testing`) |
+| Topic | select | 소주제 (`claude-code`, `bb-rsi-longshort`) |
+| Tags | multi_select | 연관 주제 (index.md의 `관련:`에서 추출) |
+| Created | date | 작성일 (frontmatter, 본문, 또는 git log) |
+| Path | rich_text | library 내 파일 경로 |
+
+**팁:** Notion에서 `Category`로 그룹핑하면 도서관처럼 대분류별로 볼 수 있습니다. 그룹핑 후 Category 컬럼은 숨겨도 됩니다.
+
+### 기존 파일 마이그레이션
+
+Notion 연동 전에 이미 library에 파일이 있다면:
+
+```bash
+# 드라이런 — 마이그레이션 대상 확인
+~/.claude/scripts/notion-library-migrate.sh --dry-run
+
+# 전체 마이그레이션
+~/.claude/scripts/notion-library-migrate.sh
+
+# 특정 카테고리만
+~/.claude/scripts/notion-library-migrate.sh --category ml
+```
+
+이미 마이그레이션된 파일은 `.notion-migrated`에서 추적하여 중복 전송을 방지합니다.
 
 ---
 

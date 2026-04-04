@@ -7,7 +7,7 @@
 A file-based knowledge library that Claude reads and writes on its own —
 so you never have to re-explain the same thing twice.
 
-[Install](#install) · [How It Works](#how-it-works) · [Storage Options](#storage-options) · [Structure](#structure)
+[Install](#install) · [How It Works](#how-it-works) · [Storage Options](#storage-options) · [Notion Sync](#notion-sync-optional) · [Structure](#structure)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -83,6 +83,55 @@ Choose during install:
 | **Local only** | No git. Files stay in `~/.claude/.claude-library/` |
 | **Include in ~/.claude repo** | Tracked inside your existing `~/.claude` git repo |
 | **Separate private repo** | Dedicated repo for the library. Clone an existing one or push fresh. Syncs across machines. |
+
+---
+
+## Notion Sync (Optional)
+
+You can mirror your library to a Notion database. When enabled, every library entry is automatically synced to Notion after git push.
+
+### Setup
+
+During `install.sh`, you'll be asked:
+
+```
+Sync Library to Notion? [y/N]
+```
+
+If yes, you'll need:
+- **NOTION_TOKEN** — [Create an internal integration](https://www.notion.so/my-integrations) and copy the token
+- **Notion page ID** — The page where the DB will be created (last 32 chars of the page URL)
+
+The installer creates an "AI Library" database with these columns:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| Title | title | Entry name (from frontmatter `name` or first heading) |
+| Category | select | Top-level grouping (`dev`, `ml`, `finance`) |
+| Subcategory | select | Second level (`tooling`, `crypto`, `testing`) |
+| Topic | select | Specific subject (`claude-code`, `bb-rsi-longshort`) |
+| Tags | multi_select | Related topics (from `관련:` in index.md) |
+| Created | date | Entry date (frontmatter, body, or git log) |
+| Path | rich_text | File path in library |
+
+**Tip:** In Notion, group the table by `Category` for a library-like view, then hide the Category column.
+
+### Migrate Existing Files
+
+If you already have library entries before enabling Notion:
+
+```bash
+# Dry run — see what will be migrated
+~/.claude/scripts/notion-library-migrate.sh --dry-run
+
+# Migrate all
+~/.claude/scripts/notion-library-migrate.sh
+
+# Migrate specific category only
+~/.claude/scripts/notion-library-migrate.sh --category ml
+```
+
+Already-migrated files are tracked in `.notion-migrated` to prevent duplicates.
 
 ---
 
