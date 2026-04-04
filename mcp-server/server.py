@@ -13,14 +13,19 @@ LIBRARY_ROOT = Path(os.environ.get("LIBRARY_ROOT", Path.home() / ".claude" / ".c
 mcp = FastMCP(
     "claude-library",
     instructions=(
-        "도구, 프로젝트, 기술 키워드가 언급되거나 기술적 질문에 답하거나 뭔가 제안하기 전에 library_search()를 무조건 호출해라. "
-        "'찾아봐', '검색해봐' 같은 탐색 요청도 파일시스템 뒤지기 전에 library부터 확인해라. "
-        "결과가 없어도 호출은 해야 한다. "
-        "이미 시도했거나 실패한 접근법, 삽질로 알게 된 사실, 교정받은 내용이 있을 수 있다. "
-        "검색 결과가 있으면 '📚 library 참조: [topic]' 한 줄로 알리고 이미 기록된 방향은 재제안하지 마라. "
-        "결과가 없으면 그냥 넘어가라."
+        "ALWAYS call library_search() before answering technical questions, "
+        "suggesting approaches, or starting implementation. "
+        "Search for relevant keywords from the user's question. "
+        "This library contains past experiments, gotchas, and proven solutions — "
+        "ignoring it risks repeating known mistakes. "
+        "If results found: prefix response with '📚 library 참조: [topic]' and follow stored guidance. "
+        "If no results: proceed normally without mentioning the search."
     )
 )
+
+# --- In-memory index (lazy built) ---
+
+_index_cache: list[dict] | None = None
 
 
 def _read_file(path: Path) -> str:
@@ -30,53 +35,160 @@ def _read_file(path: Path) -> str:
         return ""
 
 
-def _search_index(query: str) -> list[dict]:
-    """LIBRARY.md에서 query 관련 항목 찾기"""
-    library_md = LIBRARY_ROOT / "LIBRARY.md"
-    if not library_md.exists():
-        return []
+def _strip_frontmatter(text: str) -> str:
+    if text.startswith("---"):
+        end = text.find("---", 3)
+        if end != -1:
+            return text[end + 3:].strip()
+    return text
 
-    content = _read_file(library_md)
-    query_lower = query.lower()
-    results = []
 
-    # 현재 카테고리/서브카테고리 헤더 추적
-    current_category = ""
-    current_sub = ""
+def _word_match(term: str, text: str) -> bool:
+    """Word boundary match — 'ml' won't match 'html'."""
+    return bool(re.search(r'(?<![a-z가-힣0-9])' + re.escape(term) + r'(?![a-z가-힣0-9])', text))
 
-    for line in content.splitlines():
-        # 카테고리/서브카테고리 헤더 추적
-        if line.startswith("## ") and not line.startswith("### "):
-            current_category = line[3:].strip()
-            current_sub = ""
-            continue
-        if line.startswith("### "):
-            current_sub = line[4:].strip()
-            continue
 
-        # - [topic](path) — description 형식
-        match = re.match(r"-\s+\[([^\]]+)\]\(([^)]+)\)\s+—\s+(.*)", line)
-        if match:
-            topic, rel_path, description = match.groups()
+def _build_index() -> list[dict]:
+    """Walk library/ and build per-file index from index.md + file bodies."""
+    global _index_cache
+    if _index_cache is not None:
+        return _index_cache
+
+    entries = []
+    library_dir = LIBRARY_ROOT / "library"
+    if not library_dir.exists():
+        _index_cache = []
+        return _index_cache
+
+    for index_path in library_dir.rglob("index.md"):
+        topic_dir = index_path.parent
+        # Derive category/subcategory/topic from path
+        rel = topic_dir.relative_to(library_dir)
+        parts = list(rel.parts)
+        topic_name = parts[-1] if parts else ""
+        category = parts[0] if len(parts) >= 1 else ""
+        subcategory = parts[1] if len(parts) >= 3 else ""
+
+        index_content = _read_file(index_path)
+
+        # Parse index.md for knowledge file entries
+        # Format: - [filename.md](path) — description
+        file_entries = re.findall(
+            r'-\s+\[([^\]]+\.md)\]\(([^)]+)\)\s+—\s+(.*)',
+            index_content
+        )
+
+        if file_entries:
+            for fname, fpath, description in file_entries:
+                full_file = topic_dir / fpath
+                body = ""
+                if full_file.exists():
+                    body = _strip_frontmatter(_read_file(full_file))
+
+                entries.append({
+                    "topic": topic_name,
+                    "category": category,
+                    "subcategory": subcategory,
+                    "filename": fname.replace(".md", ""),
+                    "description": description.strip(),
+                    "body": body.lower(),
+                    "path": str(full_file.relative_to(LIBRARY_ROOT)),
+                    "index_path": str(index_path.relative_to(LIBRARY_ROOT)),
+                })
         else:
-            # - [topic](path) (N) 형식 (description 없음)
-            match = re.match(r"-\s+\[([^\]]+)\]\(([^)]+)\)", line)
-            if not match:
-                continue
-            topic, rel_path = match.groups()
-            description = ""
-
-        # 검색 대상: topic, description, category, subcategory, path
-        searchable = f"{topic} {description} {current_category} {current_sub} {rel_path}".lower()
-        if any(q in searchable for q in query_lower.split()):
-            label = "/".join(filter(None, [current_category, current_sub, topic]))
-            results.append({
-                "topic": label,
-                "path": rel_path,
-                "description": description or f"{current_category}/{current_sub}",
+            # index.md exists but no file entries — index itself as a topic
+            entries.append({
+                "topic": topic_name,
+                "category": category,
+                "subcategory": subcategory,
+                "filename": topic_name,
+                "description": "",
+                "body": _strip_frontmatter(index_content).lower(),
+                "path": str(index_path.relative_to(LIBRARY_ROOT)),
+                "index_path": str(index_path.relative_to(LIBRARY_ROOT)),
             })
 
-    return results
+        # Also pick up knowledge files NOT listed in index.md
+        listed_files = {fname for fname, _, _ in file_entries}
+        for md_file in topic_dir.glob("*.md"):
+            if md_file.name == "index.md" or md_file.name == "_template.md":
+                continue
+            if md_file.name in listed_files:
+                continue
+            body = _strip_frontmatter(_read_file(md_file))
+            entries.append({
+                "topic": topic_name,
+                "category": category,
+                "subcategory": subcategory,
+                "filename": md_file.stem,
+                "description": "",
+                "body": body.lower(),
+                "path": str(md_file.relative_to(LIBRARY_ROOT)),
+                "index_path": str(index_path.relative_to(LIBRARY_ROOT)),
+            })
+
+    _index_cache = entries
+    return _index_cache
+
+
+def _score_entry(entry: dict, terms: list[str]) -> float:
+    """Score an entry against query terms. Higher = more relevant."""
+    if not terms:
+        return 0
+
+    total = 0
+    matched_terms = 0
+
+    for term in terms:
+        term_score = 0
+
+        # Tier 1: topic name (10 pts)
+        if _word_match(term, entry["topic"]):
+            term_score = max(term_score, 10)
+
+        # Tier 2: filename (8 pts)
+        if _word_match(term, entry["filename"]):
+            term_score = max(term_score, 8)
+
+        # Tier 3: description (6 pts)
+        if entry["description"] and _word_match(term, entry["description"].lower()):
+            term_score = max(term_score, 6)
+
+        # Tier 4: category/subcategory (4 pts)
+        cat_text = f"{entry['category']} {entry['subcategory']}"
+        if _word_match(term, cat_text):
+            term_score = max(term_score, 4)
+
+        # Tier 5: body (2 pts)
+        if term in entry["body"]:
+            term_score = max(term_score, 2)
+
+        if term_score > 0:
+            matched_terms += 1
+        total += term_score
+
+    # AND bias: penalize if not all terms matched
+    if len(terms) > 1:
+        total *= (matched_terms / len(terms))
+
+    return total
+
+
+def _search(query: str) -> list[dict]:
+    """Search the index with scoring."""
+    index = _build_index()
+    terms = [t.lower() for t in re.split(r'\s+', query.strip()) if t]
+    if not terms:
+        return []
+
+    scored = []
+    for entry in index:
+        score = _score_entry(entry, terms)
+        if score > 0:
+            scored.append((score, entry))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [entry for _, entry in scored[:7]]
 
 
 def _read_topic(rel_path: str) -> str:
@@ -90,30 +202,39 @@ def _read_topic(rel_path: str) -> str:
 @mcp.tool()
 def library_search(query: str) -> str:
     """
-    Claude의 지식 라이브러리에서 관련 지식을 검색합니다.
-    투자 전략, 백테스트 결과, 기술 패턴, 삽질 기록 등을 조회할 때 사용하세요.
-    새 작업 시작 전, 관련 분야의 과거 결론이 있는지 확인할 때 호출하세요.
+    Search the knowledge library for past experiments, gotchas, and solutions.
+    Contains: backtest results, API/framework gotchas, debugging solutions,
+    tool configurations, architecture decisions, proven patterns.
 
     Args:
-        query: 검색어 (예: "fibonacci", "VIX filter", "LightGBM", "spring test")
+        query: search keywords (e.g. "hook timing", "spring test", "bb rsi crypto")
     """
-    matches = _search_index(query)
+    matches = _search(query)
 
     if not matches:
         return f"'{query}' 관련 라이브러리 항목 없음."
 
     parts = []
-    for m in matches[:5]:  # 최대 5개
-        parts.append(f"## {m['topic']}\n> {m['description']}\n")
-        content = _read_topic(m["path"])
-        if content:
-            # index.md 전체 내용 포함 (너무 길면 앞부분만)
-            lines = content.splitlines()
-            preview = "\n".join(lines[:60])
-            if len(lines) > 60:
-                preview += f"\n... ({len(lines) - 60}줄 더 있음)"
-            parts.append(preview)
-        parts.append("")
+    for m in matches:
+        label = "/".join(filter(None, [m["category"], m["subcategory"], m["topic"]]))
+        header = f"## {label}/{m['filename']}"
+        if m["description"]:
+            header += f"\n> {m['description']}"
+        parts.append(header)
+
+        # Body preview (first ~200 chars, cut at line boundary)
+        if m["body"]:
+            preview_lines = []
+            char_count = 0
+            for line in m["body"].splitlines():
+                if char_count + len(line) > 300:
+                    break
+                preview_lines.append(line)
+                char_count += len(line)
+            if preview_lines:
+                parts.append("\n".join(preview_lines))
+
+        parts.append(f"`library_read('{m['path']}')`로 전문 읽기\n")
 
     return "\n".join(parts)
 
