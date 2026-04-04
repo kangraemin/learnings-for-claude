@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "mcp__claude-library__library_search",
-      "mcp__claude-library__library_list"
+      "mcp__claude-library__library_list",
+      "mcp__claude-library__library_read"
     ]
   }
 }
