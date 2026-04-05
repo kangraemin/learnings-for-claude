@@ -41,6 +41,9 @@ This system keeps the lesson.
 - A better method is discovered
 - An API/library gotcha is found through debugging
 - Useful insight from a doc or article
+- A session analysis/comparison produces a reusable conclusion (query file-back)
+
+Before saving, Claude applies a **Prediction Error filter**: "Was this surprising? Would I hit this again?" If the answer is in the docs, it's not worth saving.
 
 A `SessionEnd` hook fires after each session. Claude reviews the conversation, judges if anything is worth keeping, and writes it to the library.
 
@@ -50,10 +53,12 @@ A `SessionEnd` hook fires after each session. Claude reviews the conversation, j
 
 ```
 Session ends
-    → SessionEnd hook fires
+    → SessionEnd hook fires (or /session-review)
     → Claude reviews: anything worth logging?
-    → If yes: writes to library/[category]/[subcategory]/[topic]/
-    → Updates LIBRARY.md index
+    → Classify: type (gotcha/strategy/pattern/decision) + durability (permanent/temporal)
+    → Check: any cross-topic synthesis?
+    → Write to library/[category]/[subcategory]/[topic]/
+    → Update LIBRARY.md index + CHANGELOG.md
     → git commit + push
     → Notion sync (if enabled)
 
@@ -62,6 +67,14 @@ New session starts
     → MCP server searches library (index + body)
     → Claude reads relevant entries before responding
 ```
+
+**Maintaining** — Three skills keep the library healthy:
+
+| Skill | What it does | When to run |
+|-------|-------------|-------------|
+| `/library-lint` | Fix broken cross-refs, missing index entries, stale temporal items | Weekly or on-demand |
+| `/library-evolve` | Suggest structural improvements (split categories, new templates) | Monthly |
+| `/session-review` | Extract learnings + file-back + synthesis check | End of session |
 
 ---
 
@@ -186,12 +199,12 @@ Classification follows `TAXONOMY.md` — organized by domain/technique, not by t
 ~/.claude/
   .claude-library/
     LIBRARY.md          ← searchable index
+    CHANGELOG.md        ← chronological log of all changes
     GUIDE.md            ← writing guide for Claude
     TAXONOMY.md         ← classification rules
     library/
-      dev/
-        tooling/        ← claude-code, mcp-patterns, ...
-        testing/        ← spring-isolation, ...
+      tooling/          ← claude-code, mcp-patterns, ...
+      testing/          ← spring-isolation, ...
       ml/
         classification/ ← gradient-boosting, ...
         time-series/
@@ -199,22 +212,30 @@ Classification follows `TAXONOMY.md` — organized by domain/technique, not by t
         crypto/         ← bb-rsi-longshort, donchian, ...
         equity/         ← cross-momentum, vol-targeting, ...
       infra/            ← cicd, kaggle-env, ...
+      synthesis/        ← cross-topic conclusions
 ```
 
-Each knowledge file:
+Each knowledge file has metadata and uses one of four type-specific templates:
 
 ```markdown
 # [Title]
 
 - Date: YYYY-MM-DD
 - Source: [experiment / debugging / article]
-
-## What happened
-Context, data, error messages.
-
-## Lesson
-What to do (or not do) next time.
+- durability: permanent | temporal
+- type: gotcha | strategy | pattern | decision
 ```
+
+| Type | Sections | Use when |
+|------|----------|----------|
+| **gotcha** | Symptom → Cause → Fix → Prevention | API quirk, debugging surprise |
+| **strategy** | Setup → Results → Conclusion → Next | Experiment or backtest |
+| **pattern** | When → How → Tradeoffs | Reusable technique |
+| **decision** | Options → Choice → Rationale | Architecture or approach choice |
+
+**Durability** marks whether knowledge expires: `permanent` (hardware facts, math) vs `temporal` (version-dependent, config). Only temporal items get staleness checks during lint.
+
+**Confidence tags** mark individual claims inline: `[verified]`, `[inferred]`, `[TODO]`.
 
 ---
 

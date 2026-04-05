@@ -41,6 +41,9 @@ Claude와 반복 작업하다 보면 이런 일이 생깁니다:
 - 더 나은 방법을 발견했을 때
 - 에러나 버그로 API/라이브러리 동작을 알게 됐을 때
 - 아티클이나 문서에서 유효한 인사이트를 얻었을 때
+- 세션에서 분석/비교한 결과가 재사용 가능할 때 (Query 파일백)
+
+저장 전 **Prediction Error 필터**: "예상과 달랐나? 다음에 또 삽질할 것 같나?" — 문서에 있는 내용이면 저장 안 함.
 
 세션 종료 시 `SessionEnd` 훅이 실행되고, Claude가 대화를 리뷰하여 기록할 내용이 있으면 파일을 쓰고 커밋합니다.
 
@@ -50,10 +53,12 @@ Claude와 반복 작업하다 보면 이런 일이 생깁니다:
 
 ```
 세션 종료
-    → SessionEnd 훅 실행
+    → SessionEnd 훅 실행 (또는 /session-review)
     → Claude 리뷰: 기록할 것 있나?
-    → 있다면: library/[카테고리]/[서브카테고리]/[주제]/ 아래에 파일 작성
-    → LIBRARY.md index 업데이트
+    → 분류: 유형 (gotcha/strategy/pattern/decision) + 내구성 (permanent/temporal)
+    → 체크: 여러 주제를 엮는 종합(synthesis) 결론이 있나?
+    → library/[카테고리]/[서브카테고리]/[주제]/ 아래에 파일 작성
+    → LIBRARY.md index + CHANGELOG.md 업데이트
     → git commit + push
     → Notion 동기화 (활성화 시)
 
@@ -62,6 +67,14 @@ Claude와 반복 작업하다 보면 이런 일이 생깁니다:
     → MCP 서버가 라이브러리 검색 (인덱스 + 본문)
     → Claude가 관련 항목 읽은 후 응답
 ```
+
+**유지보수** — 3가지 스킬이 라이브러리를 건강하게 유지합니다:
+
+| 스킬 | 기능 | 실행 주기 |
+|------|------|----------|
+| `/library-lint` | 관련 태그 양방향 검증, 인덱스 미등록, temporal 항목 staleness 체크 | 주 1회 또는 수동 |
+| `/library-evolve` | 카테고리 밸런스, 템플릿 사용률, 규칙 효과성 분석 후 구조 개선 제안 | 월 1회 |
+| `/session-review` | 세션에서 배운 것 추출 + 파일백 + synthesis 체크 | 세션 종료 시 |
 
 ---
 
@@ -186,12 +199,12 @@ Yes 선택 시 필요한 것:
 ~/.claude/
   .claude-library/
     LIBRARY.md          ← 검색 가능한 인덱스
+    CHANGELOG.md        ← 모든 변경의 시간순 기록
     GUIDE.md            ← Claude용 작성 가이드
     TAXONOMY.md         ← 분류 체계
     library/
-      dev/
-        tooling/        ← claude-code, mcp-patterns, ...
-        testing/        ← spring-isolation, ...
+      tooling/          ← claude-code, mcp-patterns, ...
+      testing/          ← spring-isolation, ...
       ml/
         classification/ ← gradient-boosting, ...
         time-series/
@@ -199,22 +212,30 @@ Yes 선택 시 필요한 것:
         crypto/         ← bb-rsi-longshort, donchian, ...
         equity/         ← cross-momentum, vol-targeting, ...
       infra/            ← cicd, kaggle-env, ...
+      synthesis/        ← 여러 주제를 엮는 종합 결론
 ```
 
-각 지식 파일:
+각 지식 파일은 메타데이터와 유형별 템플릿을 사용합니다:
 
 ```markdown
 # [제목]
 
 - 날짜: YYYY-MM-DD
 - 출처: [실험명 / 디버깅 / 아티클]
-
-## 상황
-무슨 일이 있었는지. 에러 메시지, 데이터, 맥락.
-
-## 교훈
-다음에 어떻게 할지 (또는 하지 말아야 할지).
+- durability: permanent | temporal
+- type: gotcha | strategy | pattern | decision
 ```
+
+| 유형 | 섹션 | 용도 |
+|------|------|------|
+| **gotcha** | 증상 → 원인 → 해결 → 예방 | API 삽질, 디버깅 |
+| **strategy** | 설정 → 결과 → 결론 → 다음 스텝 | 실험/백테스트 |
+| **pattern** | 언제 → 방법 → 트레이드오프 | 재사용 가능한 기법 |
+| **decision** | 선택지 → 선택 → 근거 | 아키텍처/접근법 결정 |
+
+**Durability**: `permanent`(하드웨어 사실, 수학) vs `temporal`(버전 의존, 설정). lint에서 temporal만 staleness 체크.
+
+**Confidence 태그**: 본문 내 개별 주장에 `[verified]`, `[inferred]`, `[TODO]` 인라인 표시.
 
 ---
 
