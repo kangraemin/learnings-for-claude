@@ -3,7 +3,8 @@
     "allow": [
       "mcp__claude-library__library_search",
       "mcp__claude-library__library_list",
-      "mcp__claude-library__library_read"
+      "mcp__claude-library__library_read",
+      "Skill(update-config)"
     ]
   }
 }
