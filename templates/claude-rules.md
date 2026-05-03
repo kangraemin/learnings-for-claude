@@ -6,7 +6,11 @@
 > 설치 후 library에 지식이 쌓이면 여기에 카테고리별 주제 목록이 자동 추가됩니다.
 
 ### 읽기
-- 기술 질문에 답하거나, 구현을 시작하거나, 접근법을 제안하기 전에 **반드시** `library_search(query)`를 호출한다
+- `library_search`는 **deferred tool** — 매 세션/작업 시작 시 반드시 먼저 `ToolSearch("select:mcp__claude-library__library_search")`로 로드한 뒤 사용한다
+- 아래 상황에서 **반드시** `library_search(query)`를 호출한다:
+  - 기술 질문에 답하거나 접근법을 제안할 때
+  - 구현을 시작할 때
+  - 에러/삽질이 발생했을 때 — 이미 기록된 해결책이 있을 수 있다
 - 결과가 있으면 `📚 library 참조: [topic]`로 시작하고 저장된 내용을 따른다
 - 결과가 없으면 별도 언급 없이 진행한다
 - 관련 주제가 발견되면 `library_read(path)`로 index.md를 읽어 상세 확인
